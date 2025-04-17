@@ -1,7 +1,7 @@
 # Spatial Query
-A utility class for spatial queries in Roblox. If you do not want to use Knit, then just use your own Signal module or take the signal module from [Knit/RbxUtil](https://sleitnick.github.io/RbxUtil/api/Signal/).
+A utility class for spatial queries in Roblox. If you do not want to use Knit[^1], then just use your own Signal module or take the signal module from [Knit/RbxUtil](https://sleitnick.github.io/RbxUtil/api/Signal/)[^2]. If you see any possible improvements, correct it with a pull request, or tell me.
 
-# Features:
+## Features:
 *    Find closest parts, models, or tagged objects
 *    Detect objects within a radius
 *    Raycasting with configurable options
@@ -9,7 +9,7 @@ A utility class for spatial queries in Roblox. If you do not want to use Knit, t
 *    Configurable search scope for performance optimization
 *    Events for when closest objects change
 
-# Public Methods:
+## Public Methods:
 ```lua
 query:GetClosestPart(position, options)
 query:GetClosestModel(position, options)
@@ -23,7 +23,7 @@ query:GetPreviousClosestPart()
 query:GetPreviousClosestModel()
 ```
 
-# Example:
+## Example:
 ```lua
 local query = SpatialQuery.new(game.Workspace.Level)  -- Search only in Level folder
 
@@ -38,3 +38,7 @@ local closestPart = query:GetClosestPart(origin, {
     lineOfSightRequired = true
 })
 ```
+
+### Sources:
+[^1]: https://github.com/Sleitnick/Knit
+[^2]: https://github.com/Sleitnick/RbxUtil
