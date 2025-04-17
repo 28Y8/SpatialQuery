@@ -33,8 +33,7 @@ end)
 
 local closestPart = query:GetClosestPart(origin, {
     maxDistance = 100,
-    ignoreList = {character},
-    predicate = function(part) return part.Name == "Target" end,
+    ignoreList = {game.Workspace.Tree},
     lineOfSightRequired = true
 })
 ```
