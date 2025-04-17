@@ -1,12 +1,11 @@
 # Spatial Query
-A utility class for spatial queries in Roblox. If you do not want to use Knit[^1], then just use your own Signal module or take the signal module from [Knit/RbxUtil](https://sleitnick.github.io/RbxUtil/api/Signal/)[^2]. If you see any possible improvements, correct it with a pull request, or tell me.
+A utility class for spatial queries in Roblox. If you do not want to use the [Knit](https://sleitnick.github.io/Knit)[^1] framework, then just use your own Signal module or take the signal module from [Knit/RbxUtil](https://sleitnick.github.io/RbxUtil/api/Signal/)[^2]. If you see any possible improvements, correct it with a pull request, or tell me.
 
 ## Features:
 *    Find closest parts, models, or tagged objects
 *    Detect objects within a radius
 *    Raycasting with configurable options
 *    Line of sight checking
-*    Configurable search scope for performance optimization
 *    Events for when closest objects change
 
 ## Public Methods:
