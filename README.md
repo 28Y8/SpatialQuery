@@ -9,7 +9,7 @@ A utility class for spatial queries in Roblox. If you do not want to use the [Kn
 *    Events for when closest objects change
 
 ## Public Methods:
-```lua
+```luau
 query:GetClosestPart(position, options)
 query:GetClosestModel(position, options)
 query:GetClosestTagged(position, tag, options)
@@ -23,7 +23,7 @@ query:GetPreviousClosestModel()
 ```
 
 ## Example:
-```lua
+```luau
 local query = SpatialQuery.new(game.Workspace.Level)  -- Search only in Level folder
 
 query.OnClosestPartChanged:Connect(function(newPart, oldPart)
