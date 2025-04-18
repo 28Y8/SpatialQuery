@@ -77,6 +77,8 @@ function SpatialQuery.new(searchScope)
 	return self
 end
 
+---- Methods ---
+
 --[[
     Set a new search scope for this instance
     @param searchScope Instance - The new root instance to search within
@@ -115,8 +117,6 @@ function SpatialQuery:ClearCache()
 
 	return self
 end
-
----- Public Methods ---
 
 --[[
     Find the closest part to the given position
