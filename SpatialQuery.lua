@@ -7,8 +7,6 @@
 	- Detect objects within a radius
 	- Raycasting with configurable options
 	- Line of sight checking
-	- Proximity filtering with custom conditions
-	- Configurable search scope for performance optimization
 	- Events for when closest objects change
 
 	Example usage:
