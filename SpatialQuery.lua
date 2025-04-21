@@ -13,13 +13,13 @@
 
 	Example usage:
 	
-	local query = SpatialQuery.new(game.Workspace.Level)  -- Search only in Level folder
+	local query = SpatialQuery.new(game.Workspace.Level) -- Search only in Level folder
 
 	query.OnClosestPartChanged:Connect(function(newPart, oldPart)
 	    print("Closest part changed from", oldPart, "to", newPart)
 	end)
-
-	local closestPart = query:GetClosestPart(origin, {
+	
+	local closestPart = query:GetClosestPart(originVector3, {
     	maxDistance = 100,
 	    ignoreList = {game.Workspace.Tree},
 	    lineOfSightRequired = true
@@ -297,22 +297,32 @@ function SpatialQuery:GetClosestModel(position, options)
 				if model.PrimaryPart then
 					modelPosition = model.PrimaryPart.Position
 				else
-					-- Use average position of all parts
-					local sum = Vector3.new(0, 0, 0)
-					local count = 0
+					-- Use GetBoundingBox instead of calculating average position
+					local success, boundingBox = pcall(function()
+						return model:GetBoundingBox()
+					end)
 
-					for _, child in ipairs(model:GetDescendants()) do
-						if child:IsA("BasePart") then
-							sum = sum + child.Position
-							count = count + 1
-						end
-					end
-
-					if count > 0 then
-						modelPosition = sum / count
+					if success then
+						-- The position is in the CFrame
+						modelPosition = boundingBox.Position
 					else
-						-- No parts found, skip this model
-						continue
+						-- Fallback to original method if GetBoundingBox fails
+						local sum = Vector3.new(0, 0, 0)
+						local count = 0
+
+						for _, child in ipairs(model:GetDescendants()) do
+							if child:IsA("BasePart") then
+								sum = sum + child.Position
+								count = count + 1
+							end
+						end
+
+						if count > 0 then
+							modelPosition = sum / count
+						else
+							-- No parts found, skip this model
+							continue
+						end
 					end
 				end
 
@@ -349,6 +359,178 @@ function SpatialQuery:GetClosestModel(position, options)
 	-- Fire event if the closest model has changed
 	if closestModel ~= self.previousResults.closestModel then
 		self.OnClosestModelChanged:Fire(closestModel, self.previousResults.closestModel)
+		self.previousResults.closestModel = closestModel
+	end
+
+	if closestModel then
+		return closestModel, closestDistance
+	end
+
+	return nil, nil
+end
+
+--[[
+    Find the closest model to the given position, using a custom path to a reference part
+    @param position Vector3 - Origin position for the search
+    @param partPath string - Path to the reference part relative to each model (e.g. "Head" or "Tech.Monitor")
+    @param options table - Configuration options:
+        - maxDistance (number): Maximum search distance
+        - ignoreList (table): Instances to ignore
+        - predicate (function): Optional filter function(model) that returns true to include the model
+        - searchScope (Instance): Optional override for search scope just for this query
+        - useCache (boolean): Whether to use cached descendants (true by default)
+        - lineOfSightRequired (boolean): Whether line of sight is required (false by default)
+        - fallbackToDefault (boolean): Whether to fallback to PrimaryPart or bounding box if path not found (true by default)
+    @return Model, number - The closest model and its distance, or nil if none found
+]]
+function SpatialQuery:GetClosestModelWithCustomPart(position, partPath, options)
+	options = options or {}
+
+	local maxDistance = options.maxDistance or DEFAULT_MAX_DISTANCE
+	local ignoreList = options.ignoreList or {}
+	local predicate = options.predicate
+	local searchScope = options.searchScope or self.searchScope
+	local useCache = options.useCache
+	local lineOfSightRequired = options.lineOfSightRequired or false
+	local fallbackToDefault = (options.fallbackToDefault ~= false) -- Default to true
+
+	if useCache == nil then
+		useCache = true
+	end
+
+	-- If search scope is different from current, we can't use cache
+	if searchScope ~= self.searchScope then
+		useCache = false
+	end
+
+	local closestModel = nil
+	local closestDistance = maxDistance
+
+	-- Get all models in the search scope
+	local allModels = {}
+
+	local descendants
+	if searchScope == self.searchScope and useCache then
+		descendants = self:GetAllDescendants()
+	else
+		descendants = searchScope:GetDescendants()
+	end
+
+	for _, descendant in ipairs(descendants) do
+		if descendant:IsA("Model") then
+			table.insert(allModels, descendant)
+		end
+	end
+
+	for _, model in ipairs(allModels) do
+		-- Skip if in ignore list
+		local shouldIgnore = false
+
+		for _, ignored in ipairs(ignoreList) do
+			if model == ignored or model:IsDescendantOf(ignored) then
+				shouldIgnore = true
+
+				break
+			end
+		end
+
+		if not shouldIgnore then
+			-- Check if it meets custom predicate
+			local meetsPredicate = true
+
+			if predicate then
+				meetsPredicate = predicate(model)
+			end
+
+			if meetsPredicate then
+				-- Try to find the custom part using the path
+				local modelPosition
+				local customPart
+				local pathParts = {}
+
+				-- Split the path string by periods
+				for part in string.gmatch(partPath, "[^%.]+") do
+					table.insert(pathParts, part)
+				end
+
+				-- Navigate through the path
+				local current = model
+				local pathValid = true
+
+				for _, pathPart in ipairs(pathParts) do
+					if current:FindFirstChild(pathPart) then
+						current = current:FindFirstChild(pathPart)
+					else
+						pathValid = false
+						break
+					end
+				end
+
+				if pathValid and current:IsA("BasePart") then
+					customPart = current
+					modelPosition = customPart.Position
+				elseif fallbackToDefault then
+					-- Fallback to default methods if custom path not found
+					if model.PrimaryPart then
+						modelPosition = model.PrimaryPart.Position
+					else
+						-- Use GetBoundingBox for better performance
+						local success, boundingBox = pcall(function()
+							return model:GetBoundingBox()
+						end)
+
+						if success then
+							modelPosition = boundingBox.Position
+						else
+							-- Fallback to original method if GetBoundingBox fails
+							local sum = Vector3.new(0, 0, 0)
+							local count = 0
+
+							for _, child in ipairs(model:GetDescendants()) do
+								if child:IsA("BasePart") then
+									sum = sum + child.Position
+									count = count + 1
+								end
+							end
+
+							if count > 0 then
+								modelPosition = sum / count
+							else
+								-- No parts found, skip this model
+								continue
+							end
+						end
+					end
+				else
+					-- Skip if we couldn't find the custom part and not using fallback
+					continue
+				end
+
+				local distance = (position - modelPosition).Magnitude
+
+				if distance < closestDistance then
+					-- Check line of sight if required
+					local hasLineOfSight = true
+
+					if lineOfSightRequired then
+						hasLineOfSight = self:HasLineOfSight(position, modelPosition, {
+							ignoreList = ignoreList
+						})
+					end
+
+					if hasLineOfSight then
+						closestModel = model
+						closestDistance = distance
+					end
+				end
+			end
+		end
+	end
+
+	-- Fire event if the closest model has changed
+	if closestModel ~= self.previousResults.closestModel then
+		self.OnClosestModelChanged:Fire(closestModel, self.previousResults.closestModel)
+
 		self.previousResults.closestModel = closestModel
 	end
 
@@ -411,7 +593,7 @@ function SpatialQuery:GetPartsInRadius(position, radius, options)
 
 	-- Get all parts in the search scope
 	local descendants
-	
+
 	if searchScope == self.searchScope and useCache then
 		descendants = self:GetAllDescendants()
 	else
@@ -576,22 +758,32 @@ function SpatialQuery:GetModelsInRadius(position, radius, options)
 				if model.PrimaryPart then
 					modelPosition = model.PrimaryPart.Position
 				else
-					-- Use average position of all parts
-					local sum = Vector3.new(0, 0, 0)
-					local count = 0
+					-- Use GetBoundingBox instead of calculating average position
+					local success, boundingBox = pcall(function()
+						return model:GetBoundingBox()
+					end)
 
-					for _, child in ipairs(model:GetDescendants()) do
-						if child:IsA("BasePart") then
-							sum = sum + child.Position
-							count = count + 1
-						end
-					end
-
-					if count > 0 then
-						modelPosition = sum / count
+					if success then
+						-- The position is in the CFrame
+						modelPosition = boundingBox.Position
 					else
-						-- No parts found, skip this model
-						continue
+						-- Fallback to original method if GetBoundingBox fails
+						local sum = Vector3.new(0, 0, 0)
+						local count = 0
+
+						for _, child in ipairs(model:GetDescendants()) do
+							if child:IsA("BasePart") then
+								sum = sum + child.Position
+								count = count + 1
+							end
+						end
+
+						if count > 0 then
+							modelPosition = sum / count
+						else
+							-- No parts found, skip this model
+							continue
+						end
 					end
 				end
 
@@ -647,7 +839,7 @@ function SpatialQuery:GetModelsInRadius(position, radius, options)
 
 	-- Convert to the expected format
 	local results = {}
-	
+
 	for _, result in ipairs(resultModels) do
 		table.insert(results, result.model)
 	end
@@ -707,6 +899,34 @@ function SpatialQuery:GetTaggedInRadius(position, radius, tag, options)
 				objectPosition = object.Position
 			elseif object:IsA("Model") and object.PrimaryPart then
 				objectPosition = object.PrimaryPart.Position
+			elseif object:IsA("Model") then
+				-- Use GetBoundingBox instead of calculating average position
+				local success, boundingBox = pcall(function()
+					return object:GetBoundingBox()
+				end)
+
+				if success then
+					-- The position is in the CFrame
+					objectPosition = boundingBox.Position
+				else
+					-- Fallback to original method if GetBoundingBox fails
+					local sum = Vector3.new(0, 0, 0)
+					local count = 0
+
+					for _, child in ipairs(object:GetDescendants()) do
+						if child:IsA("BasePart") then
+							sum = sum + child.Position
+							count = count + 1
+						end
+					end
+
+					if count > 0 then
+						objectPosition = sum / count
+					else
+						-- No parts found, skip this object
+						continue
+					end
+				end
 			else
 				-- Use average position of all parts
 				local sum = Vector3.new(0, 0, 0)
@@ -778,7 +998,7 @@ function SpatialQuery:GetTaggedInRadius(position, radius, tag, options)
 
 	-- Convert to the expected format
 	local results = {}
-	
+
 	for _, result in ipairs(resultObjects) do
 		table.insert(results, result.object)
 	end
@@ -816,7 +1036,7 @@ function SpatialQuery:GetClosestTagged(position, tag, options)
 
 		-- Skip if in ignore list
 		local shouldIgnore = false
-		
+
 		for _, ignored in ipairs(ignoreList) do
 			if object == ignored or object:IsDescendantOf(ignored) then
 				shouldIgnore = true
@@ -832,6 +1052,34 @@ function SpatialQuery:GetClosestTagged(position, tag, options)
 				objectPosition = object.Position
 			elseif object:IsA("Model") and object.PrimaryPart then
 				objectPosition = object.PrimaryPart.Position
+			elseif object:IsA("Model") then
+				-- Use GetBoundingBox instead of calculating average position
+				local success, boundingBox = pcall(function()
+					return object:GetBoundingBox()
+				end)
+
+				if success then
+					-- The position is in the CFrame
+					objectPosition = boundingBox.Position
+				else
+					-- Fallback to original method if GetBoundingBox fails
+					local sum = Vector3.new(0, 0, 0)
+					local count = 0
+
+					for _, child in ipairs(object:GetDescendants()) do
+						if child:IsA("BasePart") then
+							sum = sum + child.Position
+							count = count + 1
+						end
+					end
+
+					if count > 0 then
+						objectPosition = sum / count
+					else
+						-- No parts found, skip this object
+						continue
+					end
+				end
 			else
 				-- Use average position of all parts
 				local sum = Vector3.new(0, 0, 0)
@@ -882,10 +1130,10 @@ function SpatialQuery:GetClosestTagged(position, tag, options)
 
 	-- Fire event if closest tagged object changed
 	local tagKey = "closestTagged_" .. tag
-	
+
 	if closestObject ~= self.previousResults.closestTagged[tag] then
 		self.OnClosestTaggedChanged:Fire(tag, closestObject, self.previousResults.closestTagged[tag])
-		
+
 		self.previousResults.closestTagged[tag] = closestObject
 	end
 
@@ -935,7 +1183,7 @@ function SpatialQuery:HasLineOfSight(fromPosition, toPosition, options)
 	-- If hit distance is very close to target distance, we consider it a line of sight
 	-- This helps with floating point imprecision
 	local epsilon = 0.1
-	
+
 	return math.abs(hitDistance - distance) < epsilon
 end
 
@@ -1058,7 +1306,7 @@ function SpatialQuery:FindByNamePattern(pattern, options)
 	-- Function to search children
 	if recursive then
 		local descendants
-		
+
 		if parent == self.searchScope and useCache then
 			descendants = self:GetAllDescendants()
 		else
@@ -1134,13 +1382,13 @@ function SpatialQuery:FindObjectsByName(pattern, options)
 	local function processObject(obj)
 		if nameMatches(obj.Name) then
 			table.insert(results, obj)
-			
+
 			-- Check if we've reached the maximum results
 			if maxResults and #results >= maxResults then
 				return true -- Stop processing
 			end
 		end
-		
+
 		return false -- Continue processing
 	end
 
@@ -1176,7 +1424,7 @@ function SpatialQuery:FindObjectsByName(pattern, options)
 			end
 
 			local distance = (options.position - objectPosition).Magnitude
-			
+
 			if distance < closestDistance then
 				closestObject = obj
 				closestDistance = distance
@@ -1185,7 +1433,7 @@ function SpatialQuery:FindObjectsByName(pattern, options)
 
 		-- Fire event if closest named object changed
 		local nameKey = "closestNamed_" .. pattern
-		
+
 		if closestObject ~= self.previousResults.closestNamed[nameKey] then
 			self.ClosestNamedObjectChanged:Fire(pattern, closestObject, self.previousResults.closestNamed[nameKey])
 			self.previousResults.closestNamed[nameKey] = closestObject
@@ -1204,17 +1452,17 @@ function SpatialQuery:Destroy()
 	self.OnClosestPartChanged:Destroy()
 	self.OnClosestModelChanged:Destroy()
 	self.OnClosestTaggedChanged:Destroy()
-	
+
 	-- Clear signals
 	self.OnClosestPartChanged = nil
 	self.OnClosestModelChanged = nil
 	self.OnClosestTaggedChanged = nil
-	
+
 	-- Clear caches and state
 	self.descendantsCache = nil
 	self.previousResults = nil
 	self.searchScope = nil
-	
+
 	-- Clear metatable
 	setmetatable(self, nil)
 end
