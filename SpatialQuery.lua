@@ -1222,47 +1222,6 @@ function SpatialQuery:Raycast(origin, direction, options)
 end
 
 --[[
-    Get the closest position on the NavMesh from a given position
-    @param position Vector3 - The position to find the closest NavMesh point from
-    @param options table - Configuration options:
-        - maxDistance (number): Maximum search distance
-    @return Vector3 - The closest position on the NavMesh, or nil if none found
-]]
-function SpatialQuery:GetClosestNavMeshPosition(position, options)
-	-- Lazy load PathfindingService
-	local PathfindingService = game:GetService("PathfindingService")
-
-	options = options or {}
-	local maxDistance = options.maxDistance or DEFAULT_MAX_DISTANCE
-
-	-- Try to find the closest point on the NavMesh
-	local success, result = pcall(function()
-		return PathfindingService:FindNearestValidPosition(position, maxDistance)
-	end)
-
-	if success then
-		return result
-	end
-
-	return nil
-end
-
---[[
-    Check if a position is within the NavMesh
-    @param position Vector3 - The position to check
-    @return boolean - True if the position is on the NavMesh, false otherwise
-]]
-function SpatialQuery:IsPositionOnNavMesh(position)
-	local closestPosition = self:GetClosestNavMeshPosition(position, {maxDistance = 0.1})
-
-	if closestPosition then
-		return (position - closestPosition).Magnitude < 0.1
-	end
-
-	return false
-end
-
---[[
     Find object by name pattern (using string.find)
     @param pattern string - The pattern to search for
     @param options table - Configuration options:
