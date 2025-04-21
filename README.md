@@ -12,6 +12,7 @@ A utility class for spatial queries in Roblox. If you do not want to use the [Kn
 ```lua
 query:GetClosestPart(position, options)
 query:GetClosestModel(position, options)
+query:GetClosestModelWithCustomPart(position, partPath, options)
 query:GetClosestTagged(position, tag, options)
 
 query:GetPartsInRadius(position, radius, options)
