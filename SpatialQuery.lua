@@ -1168,7 +1168,7 @@ function SpatialQuery:HasLineOfSight(fromPosition, toPosition, options)
 	raycastParams.IgnoreWater = ignoreWater
 
 	-- Perform raycast
-	local result = workspace:Raycast(fromPosition, direction, raycastParams)
+	local result = Workspace:Raycast(fromPosition, direction, raycastParams)
 
 	-- No hit means clear line of sight
 	if not result then
@@ -1218,7 +1218,7 @@ function SpatialQuery:Raycast(origin, direction, options)
 	end
 
 	-- Perform raycast
-	return game.Workspace:Raycast(origin, scaledDirection, raycastParams)
+	return Workspace:Raycast(origin, scaledDirection, raycastParams)
 end
 
 --[[
